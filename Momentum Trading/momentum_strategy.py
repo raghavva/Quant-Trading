@@ -24,10 +24,10 @@ import datetime as dt
 import backtesting as bt
 import math
 
-key = 'XXXXXX'
+key = 'GTVYSR9SUZQ0NJMI'
 
 #url = 'https://www.alphavantage.co/query?function=TIME_SERIES_DAILY&symbol=TSLA&outputsize=full&apikey={key}&datatype=csv'
-url = 'https://www.alphavantage.co/query?function=TIME_SERIES_WEEKLY&symbol=IBM&outputsize=full&apikey={key}&datatype=csv'
+url = 'https://www.alphavantage.co/query?function=TIME_SERIES_DAILY&symbol=AAPL&outputsize=full&apikey={key}&datatype=csv'
 
 df = pd.read_csv(url)
 df = pd.DataFrame(df)
@@ -48,119 +48,55 @@ df.tail()
 df[['dlower','dmid','dupper']] = df.ta.donchian(lower_length = 40, upper_length = 40).dropna()
 df.tail()
 
-df = df.set_index('timestamp')
-df.tail()
+df = df[::-1]
+df.reset_index(drop = True, inplace = True)
+df.head()
+
+df.set_index('timestamp', inplace = True)
+df.head()
 
 plt.figure(figsize = (12,6))
 plt.plot(df['close'], label = 'Close')
-plt.plot(df['dlower'], color = 'black', label = 'DCL,DCU', linestyle = '--')
+plt.plot(df['dlower'], color = 'black', label = 'DCL,DCU', linestyle = '--', alpha = 0.3)
 plt.plot(df['dmid'], color = 'orange', label = 'DCM')
-plt.plot(df['dupper'], color = 'black',  linestyle = '--')
+plt.plot(df['dupper'], color = 'black',  linestyle = '--', alpha = 0.3)
+plt.title('Donchian Channel')
 plt.xlabel('Date')
 plt.ylabel('Price')
 plt.legend()
 plt.show()
 
-#Backtesting
-def backtest(df):
-  position = 0
-  net_profit = 0
-  percentageChange = []
-  df['buy_date'] = ''
-  df['sell_date'] = ''
-
-  for i in range(len(df)):
-    if df['signal'][i] == 1:
-      if position == 0:
-        position = 1
-        buy_price = df['close'][i]
-        buy_date = df['timestamp'][i]
-        print("Buying at " + str({buy_price}) + "on" +  str({buy_date}))
-
-    elif df['signal'][i] == -1:
-      if position == 1:
-        position = 0
-        sell_price = df['close'][i]
-        sell_date = df['timestamp'][i]
-        bought = 0
-        print("Selling at " +  str({sell_price}) + "on" + str({sell_date}))
-
-        percentageChange.append((sell_price - buy_price) / buy_price * 100)
-        net_profit += (sell_price - buy_price)
-
-  gains = 0
-  losses = 0
-  no_gains = 0
-  no_losses = 0
-  totalRet = 1
-  net_gains = 0
-  avg_gain = 0
-  avg_loss = 0
-  win_rate = 0
-
-
-  for i in percentageChange:
-    if i > 0:
-      gains += i
-      no_gains += 1
-    else:
-      losses += i
-      no_losses += 1
-    totalRet = totalRet * ((i / 100) + 1)
-    #totalRet = round(totalRet, 2)
-
-  totalRet = (totalRet - 1) * 100
-
-
-
-  if(no_gains > 0):
-    avg_gain = gains / no_gains
-  else:
-    avg_gain = "undefined"
-
-  if(no_losses > 0):
-    avg_loss = losses / no_losses
-  else:
-    avg_loss = "undefined"
-
-  if(no_gains > 0 and no_losses > 0):
-    win_rate = (no_gains / (no_losses + no_gains))*100
-  else:
-    win_rate = 0
-
-  print()
-  print("--------------------METRICS-------------------")
-  print("Total Trades = " + str({no_gains + no_losses}))
-  print("Win Rate = " + str({win_rate}))
-  print("Total Return = " + str({totalRet}))
-  print("Win rate = " + str({win_rate}))
-  print("----------------------------------------------")
-  print()
+#If price is lower than donchian channel then BUY and price greater than donchain then SELL.
 
 def backtesting_strategy(df, investment):
   position = False
   equity = investment
+  x = 0
 
   for i in range (2, len(df)):
-    #if df['high'][i] == df['dupper'][i] and position == False:
-    if df['low'][i] == df['dlower'][i] and position == False:
+
+    #if df['high'][i] >= df['dupper'][i] and position == False:
+    if df['low'][i] <= df['dlower'][i] and position == False:
       no_of_shares = math.floor(equity/df['close'][i])
       equity = equity - (no_of_shares * df['close'][i])
       position = True
-      print("Buying at " + str(df['close'][i]) + " on " + str(df.index[i]) + " for " + str(no_of_shares) + " shares")
-      print("\n")
+      print("Trade - " + str(x) + " - Buying at " + str(df['close'][i]) + " on " + str(df.index[i]) + " for " + str(no_of_shares) + " shares")
+      x = x + 1
 
-    #elif df['low'][i] == df['dlower'][i] and position == True:
-    elif df['high'][i] == df['dupper'][i] and position == True:
+    #elif df['low'][i] <= df['dlower'][i] and position == True:
+    elif df['high'][i] >= df['dupper'][i] and position == True:
       equity = equity + (no_of_shares * df['close'][i])
       position = False
-      print("Selling at " + str(df['close'][i]) + " on " + str(df.index[i]) + " for " + str(no_of_shares) + " shares")
+      print("Trade - " + str(x) + " - Selling at " + str(df['close'][i]) + " on " + str(df.index[i]) + " for " + str(no_of_shares) + " shares")
+      x = x + 1
+      print("Investment after Trade " + str(x) + " = " + str(equity))
       print("\n")
 
   if position == True:
     equity = equity + (no_of_shares * df['close'][i])
     position = False
-    print("Selling at " + str(df['close'][i]) + " on " + str(df.index[i]) + " for " + str(no_of_shares) + " shares")
+    print("Trade - " + str(x) + " - Selling at " + str(df['close'][i]) + " on " + str(df.index[i]) + " for " + str(no_of_shares) + " shares")
+    print("Investment after Trade " + str(x) + " = " + str(equity))
     print("\n")
 
   earning = round(equity - investment, 2)
@@ -168,4 +104,4 @@ def backtesting_strategy(df, investment):
   print("Earning = " + str(earning))
   print("ROI = " + str(roi))
 
-backtesting_strategy(df, 50000)
+backtesting_strategy(df, 200)
